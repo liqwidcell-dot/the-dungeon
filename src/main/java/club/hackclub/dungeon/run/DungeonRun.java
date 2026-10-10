@@ -58,6 +58,17 @@ public final class DungeonRun {
         return wave > finalWave;
     }
 
+    /**
+     * The wave number to use when rolling loot.
+     *
+     * <p>Capped at the final wave because the boss wave is numbered one past it.
+     * Without the cap, every one of the Lord's endlessly respawning minions would
+     * drop from the top loot tier instead of the wave-10 one.
+     */
+    public int lootWave() {
+        return Math.min(wave, finalWave);
+    }
+
     public int finalWave() {
         return finalWave;
     }

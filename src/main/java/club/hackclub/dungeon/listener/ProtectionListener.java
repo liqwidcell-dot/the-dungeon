@@ -1,7 +1,6 @@
 package club.hackclub.dungeon.listener;
 
 import club.hackclub.dungeon.arena.Arena;
-import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -97,14 +96,17 @@ public final class ProtectionListener implements Listener {
         }
     }
 
-    /** No flying out of the arena. Also stops flight being left on afterwards. */
+    /**
+     * No flying out of the arena.
+     *
+     * <p>Only the toggle itself is cancelled. Clearing {@code allowFlight} here
+     * would strip the player's ability permanently — creative players never get
+     * it back, because nothing re-grants it after they leave.
+     */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onToggleFlight(PlayerToggleFlightEvent event) {
-        Player player = event.getPlayer();
-        if (arena.contains(player.getLocation()) && player.getAllowFlight()) {
+        if (event.isFlying() && arena.contains(event.getPlayer().getLocation())) {
             event.setCancelled(true);
-            player.setFlying(false);
-            player.setAllowFlight(false);
         }
     }
 }

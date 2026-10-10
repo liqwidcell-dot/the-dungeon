@@ -48,17 +48,15 @@ public final class DungeonLord {
         boss.setRemoveWhenFarAway(false);
         boss.setPersistent(false);
 
-        set(boss, Attribute.MAX_HEALTH, 400.0);
+        // Same rule as the regular mobs: raising the maximum alone leaves the
+        // entity at its default 20 health, and the whole fight would be over
+        // before the bar appeared. setHealth is what fills the new bar.
+        final double maxHealth = 400.0;
+        set(boss, Attribute.MAX_HEALTH, maxHealth);
         set(boss, Attribute.ATTACK_DAMAGE, 12.0);
         set(boss, Attribute.KNOCKBACK_RESISTANCE, 1.0);
         set(boss, Attribute.MOVEMENT_SPEED, 0.3);
-
-        // Same rule as the regular mobs: raising the maximum alone leaves the
-        // entity at 20 health and it dies on the first hit.
-        var health = boss.getAttribute(Attribute.MAX_HEALTH);
-        if (health != null) {
-            health.setBaseValue(400.0);
-        }
+        boss.setHealth(maxHealth);
 
         boss.getEquipment().setItemInMainHand(new ItemStack(Material.NETHERITE_SWORD));
         boss.getEquipment().setItemInMainHandDropChance(0f);
@@ -97,6 +95,7 @@ public final class DungeonLord {
 
                     set(minion, Attribute.MAX_HEALTH, 30.0);
                     set(minion, Attribute.ATTACK_DAMAGE, 6.0);
+                    minion.setHealth(30.0); // fill the new bar, see spawn() above
 
                     minion.getPersistentDataContainer()
                             .set(runKey, PersistentDataType.STRING, run.runId().toString());

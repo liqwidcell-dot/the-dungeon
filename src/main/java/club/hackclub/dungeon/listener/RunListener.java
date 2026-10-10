@@ -51,7 +51,7 @@ public final class RunListener implements Listener {
         }
 
         DungeonRun run = runs.active();
-        if (run == null) {
+        if (run == null || run.isFinished()) {
             return;
         }
 
@@ -62,8 +62,11 @@ public final class RunListener implements Listener {
             return;
         }
 
+        // Loot tiers come from the wave, but the boss wave is numbered one past
+        // the final wave, so capping it stops the Lord's endless minions from
+        // handing out the top-tier table.
         int rolls = plugin.getConfig().getInt("run.loot-per-kill", 1);
-        List<ItemStack> drops = runs.loot().rollMany(run.wave(), run.runId(), rolls);
+        List<ItemStack> drops = runs.loot().rollMany(run.lootWave(), run.runId(), rolls);
         killer.getInventory().addItem(drops.toArray(new ItemStack[0]));
         run.countLoot(rolls);
     }

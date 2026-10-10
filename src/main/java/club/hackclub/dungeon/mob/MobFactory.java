@@ -42,14 +42,12 @@ public final class MobFactory {
             "Stalker", "Husk", "Warden", "Crawler", "Revenant", "Gnawer", "Shade", "Thrall"
     };
 
-    private final Plugin plugin;
     private final Random random = new Random();
 
     private final org.bukkit.NamespacedKey runKey;
     private final org.bukkit.NamespacedKey waveKey;
 
     public MobFactory(Plugin plugin) {
-        this.plugin = plugin;
         this.runKey = new org.bukkit.NamespacedKey(plugin, "dungeon_run");
         this.waveKey = new org.bukkit.NamespacedKey(plugin, "dungeon_wave");
     }
@@ -103,19 +101,20 @@ public final class MobFactory {
 
     /** Scale the mob to the wave. */
     private void applyStats(LivingEntity mob, int wave, Difficulty diff) {
-        set(mob, Attribute.MAX_HEALTH, diff.healthFor(wave));
+        double maxHealth = diff.healthFor(wave);
+
+        set(mob, Attribute.MAX_HEALTH, maxHealth);
         set(mob, Attribute.ATTACK_DAMAGE, diff.damageFor(wave));
         set(mob, Attribute.MOVEMENT_SPEED, 0.26);
         // Later waves get tougher to shove around, which stops the whole wave
         // being knocked into a corner by one good sword sweep.
         set(mob, Attribute.KNOCKBACK_RESISTANCE, Math.min(0.8, wave * 0.08));
 
-        // Setting MAX_HEALTH does not update current health — a mob spawned at
-        // 20 health and given a 90 health maximum would die instantly.
-        var health = mob.getAttribute(Attribute.MAX_HEALTH);
-        if (health != null) {
-            health.setBaseValue(diff.healthFor(wave));
-        }
+        // Raising MAX_HEALTH does NOT raise current health. A mob spawned with 20
+        // health and given a 90 health maximum still has 20 current, so a wave 10
+        // zombie would die to the first sword swing and the difficulty curve would
+        // be silently inverted. setHealth is what actually fills the new bar.
+        mob.setHealth(maxHealth);
     }
 
     private void set(LivingEntity mob, Attribute attribute, double value) {

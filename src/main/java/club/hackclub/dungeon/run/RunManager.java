@@ -4,7 +4,6 @@ import club.hackclub.dungeon.DungeonPlugin;
 import club.hackclub.dungeon.loot.LootTable;
 import club.hackclub.dungeon.mob.DungeonLord;
 import club.hackclub.dungeon.mob.MobFactory;
-import club.hackclub.dungeon.ui.RunHud;
 import club.hackclub.dungeon.wave.Difficulty;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -12,6 +11,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -101,6 +101,12 @@ public final class RunManager {
         }
 
         int finalWave = plugin.getConfig().getInt("run.waves", 10);
+        if (plugin.arena().world() == null) {
+            player.sendMessage(Component.text(
+                    "The dungeon arena world is not loaded. Check arena.world in config.yml.",
+                    NamedTextColor.RED));
+            return;
+        }
         this.active = new DungeonRun(player.getUniqueId(), finalWave);
         this.waveInProgress = false;
         this.awaitingNextWave = false;
@@ -141,7 +147,11 @@ public final class RunManager {
             plugin.hud().title(player, "BOSS", "The Dungeon Lord awakens.", NamedTextColor.DARK_RED);
             player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_WITHER_SPAWN, 1f, 1f);
             bossRef = boss.spawn(centre.clone().add(0, 1, 0), run);
-            plugin.hud().showBossBar(player, "The Dungeon Lord", bossRef.getHealth(), 400.0);
+            // Read the maximum off the entity rather than repeating 400.0 here,
+            // so the bar stays correct if the boss's stats are ever retuned.
+            var bossMax = bossRef.getAttribute(Attribute.MAX_HEALTH);
+            plugin.hud().showBossBar(player, "The Dungeon Lord", bossRef.getHealth(),
+                    bossMax != null ? bossMax.getValue() : 400.0);
         } else {
             int count = difficulty.countFor(run.wave());
             for (int i = 0; i < count; i++) {
@@ -192,6 +202,12 @@ public final class RunManager {
         if (player == null || !player.isOnline()) {
             // The player logged out. Nobody is going to finish the run.
             end(false);
+            return;
+        }
+        if (player.isDead()) {
+            // Died mid-wave. PlayerDeathEvent already ended the run; this is the
+            // window between the death event and that handler firing, where the
+            // alive set is being torn down underneath us.
             return;
         }
 
@@ -291,13 +307,25 @@ public final class RunManager {
                     run.summary(),
                     victory ? NamedTextColor.GREEN : NamedTextColor.RED);
 
-            player.teleport(player.getWorld().getSpawnLocation());
+            // A dead player cannot be teleported — it throws. This path is
+            // reached from endOnDeath one tick after PlayerDeathEvent, and the
+            // death animation is still running, so skipping the teleport is the
+            // normal case rather than an edge case. Their respawn is unaffected
+            // because the arena is a sealed sky box and never contains a bed.
+            if (!player.isDead()) {
+                player.teleport(player.getWorld().getSpawnLocation());
+            }
             player.setFireTicks(0);
         }
 
         run.finish(victory);
         stopTicker();
         bossRef = null;
+
+        // Clear the slot. Leaving a finished run here means runs.active() keeps
+        // handing out a stale run, and anything that reads it has to remember to
+        // check isFinished().
+        active = null;
     }
 
     /** Called on quit. The player is already gone, so just tidy up. */
