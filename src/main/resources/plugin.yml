@@ -1,0 +1,23 @@
+# Bukkit/Paper plugin metadata.
+
+name: TheDungeon
+version: '${version}'
+main: club.hackclub.dungeon.DungeonPlugin
+
+# Must match the Paper version you develop against. Valid values run from 1.13
+# up to 26.2.
+api-version: '26.2'
+
+description: A wave-based dungeon. Survive 10 waves, then beat the Dungeon Lord.
+author: bird
+
+commands:
+  dungeon:
+    description: Enter the dungeon, or leave it.
+    usage: /dungeon [leave|info|build]
+    aliases: [dg]
+
+permissions:
+  dungeon.admin:
+    description: Allows rebuilding the arena.
+    default: op

@@ -1,0 +1,40 @@
+name: Build
+
+# Builds on every push to main and on every pull request, so a reviewer can
+# verify the plugin compiles without installing Java or Gradle themselves.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build plugin jar
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Paper 26.2 needs Java 25. The local build pins this via a Gradle
+      # toolchain plus the foojay resolver, but CI can just install it directly.
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: ./gradlew build --console=plain
+
+      # The jar is attached to the run as an artifact rather than committed to
+      # the repo. Binaries in git history are unreviewable and bloat every
+      # clone; this gives reviewers a download without that cost.
+      - name: Upload plugin jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: the-dungeon
+          path: build/libs/*.jar
+          if-no-files-found: error

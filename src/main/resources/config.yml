@@ -1,0 +1,62 @@
+# The Dungeon — configuration
+#
+# Everything here is read at startup. After editing, restart the server (or
+# /reload) for changes to take effect.
+#
+# These are the numbers you will be tuning while you playtest. Nothing below
+# requires recompiling the plugin.
+
+arena:
+  # The world the box is built in. Must already exist.
+  world: world
+
+  # Fixed position. Changing these moves the arena on next start.
+  x: 0
+  y: 120
+  z: 0
+
+  # Interior half-extent. radius 12 gives a 25x25 floor.
+  radius: 12
+
+  # How many blocks above the floor the walls go. +1 is added for the roof.
+  wall-height: 6
+
+run:
+  # How many normal waves before the boss arrives.
+  waves: 10
+
+  # Ticks between "is the wave clear yet" checks. 20 ticks = 1 second.
+  # Lower is more responsive but costs more per second.
+  poll-ticks: 10
+
+  # Seconds of rest between waves. Health is refilled and a small reward given.
+  breather-seconds: 5
+
+  # Items granted per wave clear.
+  loot-per-wave: 2
+
+  # Items granted per mob killed.
+  loot-per-kill: 1
+
+difficulty:
+  # health = base-health * (1 + health-coefficient * wave ^ health-exponent)
+  #
+  # With the values below:
+  #   wave 1  -> ~7 hp     (trivially easy, you should be learning the controls)
+  #   wave 5  -> ~28 hp
+  #   wave 10 -> ~90 hp    (genuinely dangerous)
+  #
+  # Raise health-exponent to make the late waves nastier, or lower
+  # health-coefficient to flatten the whole curve.
+  base-health: 6.0
+  health-coefficient: 0.30
+  health-exponent: 1.35
+
+  # Mobs per wave = base-count + floor(count-per-wave * wave)
+  #   wave 1 -> 3 mobs, wave 10 -> 12 mobs
+  base-count: 3
+  count-per-wave: 0.9
+
+  # damage = base-damage + damage-per-wave * wave
+  base-damage: 2.0
+  damage-per-wave: 0.6
