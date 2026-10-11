@@ -168,6 +168,42 @@ None of the four are fixed yet. The live server still runs 0.2.0 and is mid
 playtest, so the plan is to let it stand and roll the fixes into 0.2.1 once the
 run has been played through.
 
+## 2026-10-11 · The red errors were not in the code (~0.6h)
+
+Opened the project to a screen full of red underlines and assumed the code had
+broken. It had not. `./gradlew build` was green the whole time, and asking the
+compiler to be loud (`-Xlint:all`) produced exactly three warnings, all
+deprecations — two calls to the deprecated `getMaxHealth()` and one legacy
+death message. So the editor was lying, and the useful part of the session was
+working out why instead of fixing the wrong thing.
+
+The cause was in the editor's own language server. It had run out of heap while
+indexing, and on the way down had written a half-finished search index. Every
+later start read a nonsense length out of that file — 1.7GB of garbage where a
+category table should be — tried to allocate memory for it, and died again. The
+log line that cracked it was the one where the broken index and the
+OutOfMemoryError appear in the same stack trace, which says the corruption is
+not the symptom, it is the cause of the next crash. A bug that can only
+reproduce itself is a bug you have to break open from outside.
+
+The fix was housekeeping rather than code: free the memory that started it,
+delete the poisoned index, let the server rebuild from source. Available RAM
+went from 4.4GB to 6.9GB just by stopping three Gradle daemons nobody had asked
+to keep running. There was also a settings file in the sandbox copy that had
+raised the language server's heap to 4GB — an earlier attempt at this exact
+problem that was never going to work, because a bigger heap does not help when
+the file being read is garbage. Removed it, and wrote the cure down where the
+next person will look instead of in a chat log: "Java: Clean Java Language
+Server Workspace".
+
+Then the genuine tidying, now that the editor could be trusted again. Both
+deprecated calls became the supported attribute reads, the death message moved
+off the legacy section-code string onto a Component, eighteen type names that
+were written out in full despite being imported right next to them became short
+ones, and two comments that had quietly gone stale were corrected to match the
+code. The lesson worth keeping: a clean build and a clean editor are two
+different claims, and only one of them was ever true here.
+
 ---
 
 ## Template for the next session
