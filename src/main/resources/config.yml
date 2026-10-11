@@ -21,6 +21,18 @@ arena:
   # How many blocks above the floor the walls go. +1 is added for the roof.
   wall-height: 6
 
+  # The box is sealed stone, so with no lamps in it you cannot see a thing.
+  # A grid of these is set into the floor and the ceiling when the arena is
+  # built, and topped up on every start.
+  #
+  # Any block works; the obvious ones are SEA_LANTERN, GLOWSTONE, SHROOMLIGHT,
+  # OCHRE_FROGLIGHT and REDSTONE_LAMP.
+  light-block: SEA_LANTERN
+
+  # Blocks between lamps. 5 on a radius-12 arena gives a 5x5 grid of them.
+  # Lower is brighter and busier; 2 is the smallest that still reads as a grid.
+  light-spacing: 5
+
 run:
   # How many normal waves before the boss arrives.
   waves: 10
@@ -29,11 +41,20 @@ run:
   # Lower is more responsive but costs more per second.
   poll-ticks: 10
 
-  # Seconds of rest between waves. Health is refilled and a small reward given.
+  # Seconds of rest between waves. Health is refilled and the prize chest is
+  # restocked for you to open.
   breather-seconds: 5
 
-  # Items granted per wave clear.
-  loot-per-wave: 2
+  # The prize chest. Clearing a wave drops a chest in the middle of the arena,
+  # holding random loot drawn from that wave's tier, and it is restocked every
+  # wave — so the loot gets better the further you get.
+  #
+  #   items = chest-items-base + floor(chest-items-per-wave * wave)
+  #   wave 1  -> 2 items
+  #   wave 5  -> 4 items
+  #   wave 10 -> 7 items
+  chest-items-base: 2
+  chest-items-per-wave: 0.5
 
   # Items granted per mob killed.
   loot-per-kill: 1

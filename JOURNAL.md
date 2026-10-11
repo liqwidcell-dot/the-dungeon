@@ -91,6 +91,52 @@ Verified by unzipping the built jar and counting: all thirteen classes plus the
 nested ones are present, and both copies of the project build to byte-identical
 jars.
 
+## 2026-10-11 · Running it on a real server (~1.2h)
+
+Up to this point the plugin had only ever been compiled — nobody had joined it.
+Stood up a Crafty instance on a VM so it could actually be played: a new Paper
+26.2 server, plugin copied into its plugins folder. Two things are worth
+recording. First, the server was unreachable from outside even with the host
+firewall open, because traffic to a cloud VM is filtered a second time at the
+provider's network layer — the fix is an ingress rule in the cloud console, not
+anything on the machine, and there is no CLI on the box to add it with. Second,
+moving the server onto the port that already worked instead of fighting the
+firewall was the right call, and that only took remembering the machine's own
+convention: one Minecraft server runs at a time, so the dungeon and the existing
+survival server take turns rather than competing for memory.
+
+Also flipped the server to offline mode so cracked launchers can connect, which
+turns out to need two settings rather than one. `online-mode=false` on its own
+still leaves secure chat profiles switched on, and a modern client without a
+Mojang account gets kicked or silently loses chat until
+`enforce-secure-profile` is off as well.
+
+## 2026-10-11 · Playtest feedback: lighting and the prize chest (~0.8h)
+
+Played it, and two things came back — one of which was a real oversight rather
+than tuning.
+
+The arena was pitch black. It is a sealed stone box floating at y=120, so no
+daylight reaches the inside, and nothing I put in it emitted any light either: I
+had built the walls and never once thought about the inside being lit. Fixed with
+a grid of sea lanterns set into both the floor and the ceiling, and made it run
+on every start rather than only when the arena is first built, so the box already
+standing in the world picked up its lighting without being torn down and
+rebuilt. I did not want to take "the block is there" as proof, so I copied the
+saved chunk out of the world file and read the block-light numbers straight out
+of its NBT: 9 to 14 across the whole interior, with the lamp grid clearly visible
+in the numbers.
+
+The second thing: clearing a wave handed you items straight into your inventory,
+which is easy to miss and reads as nothing happening. Replaced with a prize chest
+in the middle of the floor, restocked at the end of every wave and stocked from
+the same wave-tiered loot table, so it improves the deeper you get. Filling it
+had a trap in it. Bukkit block states are snapshots, so the obvious code — write
+into the state's inventory and then call `update()` — pushes the stale snapshot
+back over the top and leaves the chest empty. The correct call is
+`Chest#getBlockInventory()`, which returns the live inventory for a block that is
+actually placed, and then not calling `update()` at all.
+
 ---
 
 ## Template for the next session

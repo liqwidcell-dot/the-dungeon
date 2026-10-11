@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "club.hackclub"
-version = "0.1.0"
+version = "0.2.0"
 
 java {
     // Paper 26.2 runs on Java 25. The toolchain pins the *compiled output* to

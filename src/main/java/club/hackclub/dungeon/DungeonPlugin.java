@@ -15,19 +15,20 @@
  *  is why they can still see each other without any imports.
  *
  *  CONTENTS
- *        111  DungeonPlugin       The plugin itself. Startup, config loading, and wiring everything together.
- *        197  DungeonCommand      Handles /dungeon, /dungeon leave, /dungeon info, /dungeon build.
- *        301  Arena               The box in the sky: its coordinates, its walls, and resetting it.
- *        454  Difficulty          How tough each wave is. One curve, so wave 10 is not just 10x wave 1.
- *        520  DungeonRun          The state of one run: which wave, which player, is it over yet.
- *        668  RunManager          The wave loop. Starts waves, watches for clears, ends the run.
- *       1039  MobFactory          Builds the ordinary wave mobs and scales their health to the wave.
- *       1169  DungeonLord         The wave-10 boss and the minions he summons.
- *       1271  LootTable           What each wave and the boss are allowed to drop.
- *       1353  LootTagger          Stamps dungeon loot so only it is lost if you die.
- *       1459  RunHud              The progress bar and wave counter along the top of the screen.
- *       1539  RunListener         Death, mob-kill and disconnect events during a run.
- *       1657  ProtectionListener  Stops wall-breaking, stops natural spawns inside the arena.
+ *        115  DungeonPlugin       The plugin itself. Startup, config loading, and wiring everything together.
+ *        201  DungeonCommand      Handles /dungeon, /dungeon leave, /dungeon info, /dungeon build.
+ *        305  Arena               The box in the sky: its coordinates, its lights, and resetting it.
+ *        547  Difficulty          How tough each wave is. One curve, so wave 10 is not just 10x wave 1.
+ *        613  DungeonRun          The state of one run: which wave, which player, is it over yet.
+ *        761  RunManager          The wave loop. Starts waves, watches for clears, ends the run.
+ *       1145  MobFactory          Builds the ordinary wave mobs and scales their health to the wave.
+ *       1275  DungeonLord         The final boss and the minions he summons.
+ *       1377  LootTable           What each wave and the boss are allowed to drop.
+ *       1461  PrizeChest          The chest that appears in the middle of the arena after each wave.
+ *       1564  LootTagger          Stamps dungeon loot so only it is lost if you die.
+ *       1670  RunHud              The progress bar and wave counter along the top of the screen.
+ *       1750  RunListener         Death, mob-kill and disconnect events during a run.
+ *       1868  ProtectionListener  Stops wall-breaking, stops natural spawns inside the arena.
  *
  *  Everything is tuned in src/main/resources/config.yml - arena
  *  coordinates, wave count, difficulty curve, loot rates. To change how
@@ -38,6 +39,7 @@ package club.hackclub.dungeon;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
@@ -56,6 +58,7 @@ import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.block.Block;
+import org.bukkit.block.Chest;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
@@ -86,6 +89,7 @@ import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -285,7 +289,7 @@ final class DungeonCommand implements CommandExecutor, TabCompleter {
 
 // =========================================================================
 //  Arena
-//  The box in the sky: its coordinates, its walls, and resetting it.
+//  The box in the sky: its coordinates, its lights, and resetting it.
 // =========================================================================
 /**
  * The fixed arena in the sky: a sealed box the player is dropped into.
@@ -313,6 +317,11 @@ final class Arena {
     private final int radius;
     private final int wallHeight;
 
+    /** Block used for the grid of lights set into the floor and the ceiling. */
+    private final Material lightBlock;
+    /** How many blocks apart those lights are. Smaller is brighter, and busier. */
+    private final int lightSpacing;
+
     public Arena(DungeonPlugin plugin) {
         this.plugin = plugin;
         this.world = plugin.getServer().getWorld(plugin.getConfig().getString("arena.world", "world"));
@@ -322,6 +331,9 @@ final class Arena {
         this.centreZ = plugin.getConfig().getInt("arena.z", 0);
         this.radius = plugin.getConfig().getInt("arena.radius", 12);
         this.wallHeight = plugin.getConfig().getInt("arena.wall-height", 6);
+        this.lightBlock = readLightBlock(plugin.getConfig().getString("arena.light-block", "SEA_LANTERN"));
+        // A spacing of 1 would be a solid slab of lanterns rather than a grid.
+        this.lightSpacing = Math.max(2, plugin.getConfig().getInt("arena.light-spacing", 5));
 
         if (world == null) {
             plugin.getLogger().severe("Arena world '" +
@@ -367,6 +379,9 @@ final class Arena {
         // is free to unload underneath us.
         loadChunks();
         if (new Location(world, centreX, centreY, centreZ).getBlock().getType() == FLOOR) {
+            // The box is already standing — but it may predate the lighting, so
+            // top that up rather than rebuilding the whole arena.
+            ensureLighting();
             return;
         }
         build();
@@ -396,6 +411,84 @@ final class Arena {
                 setBlock(centreX + radius, centreY + y, centreZ + z, WALL);
             }
         }
+
+        // A freshly built box has no light at all in it, so it gets its lamps
+        // straight away rather than on the next start.
+        ensureLighting();
+    }
+
+    /**
+     * Set a grid of light sources into the floor and the ceiling.
+     *
+     * <p>This is the difference between a dungeon and a black box. The arena is
+     * sealed stone with a roof on it, so no daylight reaches the inside and
+     * nothing in the walls emits any: without lamps it is genuinely pitch dark.
+     *
+     * <p>It runs on every start, not just at build time, so an arena built by an
+     * older version of this plugin picks up its lighting without being torn down
+     * and rebuilt.
+     *
+     * <p>The very centre of the floor is deliberately skipped, because that one
+     * block is the marker {@link #buildIfNeeded()} uses to tell whether the
+     * arena is already standing. Lamplight it and the arena would be rebuilt on
+     * every single restart.
+     */
+    private void ensureLighting() {
+        int roofY = centreY + wallHeight + 1;
+
+        // Offsets outward from the centre, mirrored, so the grid stays symmetric
+        // even when the radius is not a whole multiple of the spacing.
+        List<Integer> offsets = new ArrayList<>();
+        for (int distance = 0; distance <= radius; distance += lightSpacing) {
+            offsets.add(distance);
+            if (distance != 0) {
+                offsets.add(-distance);
+            }
+        }
+
+        int placed = 0;
+        for (int offsetX : offsets) {
+            for (int offsetZ : offsets) {
+                if (lightAt(centreX + offsetX, roofY, centreZ + offsetZ)) {
+                    placed++;
+                }
+                // Floor lamps everywhere except the marker block at dead centre.
+                if ((offsetX != 0 || offsetZ != 0)
+                        && lightAt(centreX + offsetX, centreY, centreZ + offsetZ)) {
+                    placed++;
+                }
+            }
+        }
+
+        if (placed > 0) {
+            plugin.getLogger().info("Arena lighting: placed " + placed + " light source(s).");
+        }
+    }
+
+    /** Place one lamp. Returns true only if that block was not already one. */
+    private boolean lightAt(int x, int y, int z) {
+        Block block = world.getBlockAt(x, y, z);
+        if (block.getType() == lightBlock) {
+            return false;
+        }
+        setBlock(x, y, z, lightBlock);
+        return true;
+    }
+
+    /**
+     * Turn the configured block name into a {@link Material}.
+     *
+     * <p>Falling back to a known-good lamp rather than throwing means a typo in
+     * config.yml costs a line in the log, not a server that will not start.
+     */
+    private Material readLightBlock(String name) {
+        Material material = Material.matchMaterial(name == null ? "" : name.trim());
+        if (material == null) {
+            plugin.getLogger().warning("Unknown arena.light-block '" + name
+                    + "', falling back to SEA_LANTERN.");
+            return Material.SEA_LANTERN;
+        }
+        return material;
     }
 
     private void setBlock(int x, int y, int z, Material material) {
@@ -674,6 +767,7 @@ final class RunManager {
     private final MobFactory mobFactory;
     private final DungeonLord boss;
     private final LootTable loot;
+    private final PrizeChest chest;
 
     private final NamespacedKey runKey;
 
@@ -703,6 +797,7 @@ final class RunManager {
         this.mobFactory = new MobFactory(plugin);
         this.boss = new DungeonLord(plugin);
         this.loot = new LootTable(plugin);
+        this.chest = new PrizeChest(plugin, loot);
         this.runKey = new NamespacedKey(plugin, "dungeon_run");
     }
 
@@ -747,6 +842,11 @@ final class RunManager {
         // Tag the player so the listener can tell whether they are in a run
         // without having to reach into this class from outside.
         player.getPersistentDataContainer().set(runKey, PersistentDataType.STRING, active.runId().toString());
+
+        // The entry point is the middle of the floor, which is also where the
+        // prize chest sits. Clear any survivor from a previous run first, or the
+        // player lands inside a chest.
+        chest.clear();
 
         player.teleport(plugin.arena().entryPoint());
         player.setHealth(player.getMaxHealth());
@@ -876,11 +976,11 @@ final class RunManager {
         int breather = Math.max(0, plugin.getConfig().getInt("run.breather-seconds", 5));
         awaitingNextWave = true;
 
-        // A breather reward, so clearing a wave always feels like something.
-        int rolls = Math.max(1, plugin.getConfig().getInt("run.loot-per-wave", 2));
-        List<org.bukkit.inventory.ItemStack> reward = loot.rollMany(run.wave(), run.runId(), rolls);
-        player.getInventory().addItem(reward.toArray(new org.bukkit.inventory.ItemStack[0]));
-        run.countLoot(rolls);
+        // The reward for clearing a wave is the prize chest: a chest in the
+        // middle of the floor, stocked with that wave's loot tier. It gets
+        // bigger and better as the run goes on, which is the whole reason to
+        // push one wave further than feels safe.
+        run.countLoot(chest.restock(run.wave(), run.runId()));
 
         // Top the player up between waves. Without this, a long run is decided
         // entirely by who found a golden apple first.
@@ -914,6 +1014,9 @@ final class RunManager {
                 entity.remove();
             }
         }
+
+        // And take the prize chest away, loot still sitting in it included.
+        chest.clear();
 
         if (player != null && player.isOnline()) {
             // The whole point of the loss rule: their own gear is untouched,
@@ -971,6 +1074,7 @@ final class RunManager {
                     entity.remove();
                 }
             }
+            chest.clear();
             run.finish(false);
             stopTicker();
             bossRef = null;
@@ -993,17 +1097,19 @@ final class RunManager {
     // --- maintenance ---------------------------------------------------------
 
     /**
-     * Remove any dungeon mobs left in the world by a crash, a kill -9, or a
-     * plugin reload.
+     * Remove anything a previous run left in the world after a crash, a kill -9,
+     * or a plugin reload.
      *
      * <p>Without this, one bad shutdown leaves a permanent army of glowing
      * skeletons inside a sealed box, and the next person to run /dungeon cannot
-     * clear wave 1.
+     * clear wave 1. The prize chest is tidied up here for the same reason: it is
+     * a block rather than an entity, so an interrupted run can leave one behind.
      */
     public void sweepOrphans() {
         if (plugin.arena().world() == null) {
             return;
         }
+        chest.clear();
         int removed = 0;
         for (Entity entity : plugin.arena().world().getEntities()) {
             if (entity instanceof Player) {
@@ -1156,7 +1262,7 @@ final class MobFactory {
 
 // =========================================================================
 //  DungeonLord
-//  The wave-10 boss and the minions he summons.
+//  The final boss and the minions he summons.
 // =========================================================================
 /**
  * The boss of wave 11.
@@ -1332,6 +1438,111 @@ final class LootTable {
             default -> List.of(Material.NETHERITE_INGOT, Material.NETHERITE_SCRAP, Material.DIAMOND_BLOCK,
                     Material.ENCHANTED_GOLDEN_APPLE);
         };
+    }
+}
+
+// =========================================================================
+//  PrizeChest
+//  The chest that appears in the middle of the arena after each wave.
+// =========================================================================
+/**
+ * The prize chest: one chest, in the middle of the arena floor, restocked at
+ * the end of every wave.
+ *
+ * <p>It replaces handing loot straight into the player's inventory. The
+ * difference is the point of it: items that appear in your bag are easy to miss,
+ * while a chest you have to walk over and open is a moment in the run.
+ *
+ * <p>What goes in comes from {@link LootTable}, so the chest follows the same
+ * wave tiers as every other drop and gets better the deeper you go. Each item is
+ * tagged as dungeon loot, which means it obeys the same rule as everything else
+ * the dungeon gave you: lose it if you die, keep it if you leave alive.
+ */
+final class PrizeChest {
+
+    private final DungeonPlugin plugin;
+    private final LootTable loot;
+
+    public PrizeChest(DungeonPlugin plugin, LootTable loot) {
+        this.plugin = plugin;
+        this.loot = loot;
+    }
+
+    /**
+     * Where the chest sits: the block directly above the middle of the floor.
+     *
+     * <p>One block up, not on the floor itself, because the centre floor block
+     * is the marker the arena uses to tell whether it has already been built.
+     */
+    public Location spot() {
+        Location centre = plugin.arena().centre();
+        return new Location(centre.getWorld(),
+                centre.getBlockX(), centre.getBlockY() + 1, centre.getBlockZ());
+    }
+
+    /**
+     * Put the chest in place and fill it with this wave's loot.
+     *
+     * <p>Called at the end of every wave, so it has to cope with a chest already
+     * standing there from last time — hence the clear before the fill.
+     *
+     * @return how many items went in, so the run can count them as loot found
+     */
+    public int restock(int wave, UUID runId) {
+        Location location = spot();
+        if (location.getWorld() == null) {
+            return 0;
+        }
+
+        Block block = location.getBlock();
+        block.setType(Material.CHEST, false);
+        if (!(block.getState() instanceof Chest chest)) {
+            // Cannot normally happen: the block was just set to a chest. Bail out
+            // rather than throw, because a chest problem must not end a run.
+            return 0;
+        }
+
+        // getBlockInventory() is the chest's live inventory rather than a copy,
+        // so writing to it is all that is needed. The usual `update()` call would
+        // push a stale snapshot back over the top and wipe what we just added.
+        Inventory inventory = chest.getBlockInventory();
+        inventory.clear();
+
+        int base = plugin.getConfig().getInt("run.chest-items-base", 2);
+        double perWave = plugin.getConfig().getDouble("run.chest-items-per-wave", 0.5);
+        int count = Math.max(1, base + (int) Math.floor(perWave * wave));
+        // Never ask for more items than there are slots, or some would be lost.
+        count = Math.min(count, inventory.getSize());
+
+        List<ItemStack> items = loot.rollMany(wave, runId, count);
+
+        // Scatter the items across random slots so the chest does not look like a
+        // tidy row of loot. Slots are shuffled rather than picked at random,
+        // because picking twice can land on the same slot and lose an item.
+        List<Integer> slots = new ArrayList<>();
+        for (int i = 0; i < inventory.getSize(); i++) {
+            slots.add(i);
+        }
+        Collections.shuffle(slots);
+        for (int i = 0; i < items.size(); i++) {
+            inventory.setItem(slots.get(i), items.get(i));
+        }
+
+        return items.size();
+    }
+
+    /** Take the chest away. Whatever is still inside goes with it. */
+    public void clear() {
+        Location location = spot();
+        if (location.getWorld() == null) {
+            return;
+        }
+        Block block = location.getBlock();
+        if (!(block.getState() instanceof Chest chest)) {
+            return;
+        }
+        chest.getBlockInventory().clear();
+        block.setType(Material.AIR, false);
     }
 }
 
