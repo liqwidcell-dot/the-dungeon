@@ -137,6 +137,37 @@ back over the top and leaves the chest empty. The correct call is
 `Chest#getBlockInventory()`, which returns the live inventory for a block that is
 actually placed, and then not calling `update()` at all.
 
+## 2026-10-11 · Writing down the real numbers (~0.4h)
+
+Went back through the source to write the loot and mob tables down properly, and
+found that two of my own comments had drifted away from the code. The config
+comment advertises "wave 10 -> ~90 hp"; the curve actually produces 46.3, and
+wave 5 is 21.8 rather than the ~28 it claims. I had tuned by feel and never
+re-checked the numbers the comment was asserting, so the dungeon was easier than
+its own documentation said.
+
+The second find was structural. The netherite loot tier can never drop: the tier
+is picked from the wave number, but the number handed to the loot table is capped
+at the last normal wave, so the highest tier reachable is the one below it. Waves
+8, 9 and 10 therefore all draw from the same pool — the chest stops improving
+exactly where it should be getting exciting, and the only netherite in the whole
+run is the boss's single fixed ingot.
+
+Also noticed the boss spawns inside the wave-10 prize chest. The chest is
+restocked on every wave clear but only removed when the run ends, so wave 10's
+chest is still sitting in the middle of the arena when the Lord appears in that
+exact block. Harmless, because collision pushes him out, but it reads as a bug.
+
+Method, since it is the reusable part: none of this needed the server. Proving
+the lighting meant reading block-light straight out of the saved chunk NBT, and
+proving the balance just meant copying the tuning formulas into a script and
+printing the table. Re-deriving from the code is the only way to catch a comment
+that has gone stale — reading the comment would only have confirmed the comment.
+
+None of the four are fixed yet. The live server still runs 0.2.0 and is mid
+playtest, so the plan is to let it stand and roll the fixes into 0.2.1 once the
+run has been played through.
+
 ---
 
 ## Template for the next session
