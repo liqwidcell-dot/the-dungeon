@@ -56,6 +56,41 @@ split API: most of it has moved to Adventure `Component`, but a few methods like
 `createBossBar` and `setDeathMessage` still take legacy strings. Verified the
 output jar and confirmed the bytecode was Java 25 rather than 27.
 
+## 2026-10-10 · Why Hackatime recorded nothing (~0.5h)
+
+A setup problem that turned out not to be a setup problem. Hackatime showed zero
+tracked time even though the extension was installed, signed in, and the API key
+was valid. Checked the key against the API directly before touching anything —
+it authenticated fine, so the credential was never the cause.
+
+The answer came from reading the *tracker's own* log file rather than the
+editor's. `wakatime-cli` was parsing AI assistant session transcripts on every
+single heartbeat, timing out on those sqlite databases, and burning the entire
+send budget before the heartbeat ever left the machine. So every send failed
+silently while the editor reported nothing wrong. Turning that parsing off made
+heartbeats start sending immediately. Also removed a leftover empty API key
+setting in the editor config, which was stopping the extension from falling back
+to the real key. The lesson worth keeping: the UI said nothing useful, and one
+log file answered the whole question in two lines.
+
+## 2026-10-11 · One file instead of thirteen (~0.4h)
+
+Restructured the plugin from thirteen files into one, because keeping track of
+which file holds what was costing more than it was worth. Java allows only one
+*public* top-level class per file but any number of package-private ones, so
+every supporting class now shares a file and a package — same classes, same jar,
+no behaviour change.
+
+The merge was done mechanically rather than by hand so nothing could be retyped
+wrong: strip each file's `package` and import lines, collect the imports into one
+deduplicated block, drop the `public` keyword from the twelve supporting classes,
+and stack them with a banner between each. Added a contents block at the top
+with real line numbers so a file this size stays navigable.
+
+Verified by unzipping the built jar and counting: all thirteen classes plus the
+nested ones are present, and both copies of the project build to byte-identical
+jars.
+
 ---
 
 ## Template for the next session
