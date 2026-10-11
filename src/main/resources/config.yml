@@ -62,10 +62,13 @@ run:
 difficulty:
   # health = base-health * (1 + health-coefficient * wave ^ health-exponent)
   #
-  # With the values below:
-  #   wave 1  -> ~7 hp     (trivially easy, you should be learning the controls)
-  #   wave 5  -> ~28 hp
-  #   wave 10 -> ~90 hp    (genuinely dangerous)
+  # With the values below (read straight off the formula, not estimated):
+  #   wave 1  -> 7.8 hp     (trivially easy, you should be learning the controls)
+  #   wave 5  -> 21.8 hp
+  #   wave 10 -> 46.3 hp
+  #
+  # If you change the three numbers here, redo these three lines — they are the
+  # numbers the curve actually produces, and stale ones are worse than none.
   #
   # Raise health-exponent to make the late waves nastier, or lower
   # health-coefficient to flatten the whole curve.

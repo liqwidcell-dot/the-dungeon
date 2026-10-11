@@ -54,6 +54,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
@@ -849,7 +850,7 @@ final class RunManager {
         chest.clear();
 
         player.teleport(plugin.arena().entryPoint());
-        player.setHealth(player.getMaxHealth());
+        healFully(player);
         player.getInventory().setHeldItemSlot(0);
 
         plugin.hud().title(player, "THE DUNGEON", finalWave + " waves stand between you and the Lord.", NamedTextColor.RED);
@@ -877,7 +878,7 @@ final class RunManager {
 
         if (run.isBossWave()) {
             plugin.hud().title(player, "BOSS", "The Dungeon Lord awakens.", NamedTextColor.DARK_RED);
-            player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_WITHER_SPAWN, 1f, 1f);
+            player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 1f, 1f);
             bossRef = boss.spawn(centre.clone().add(0, 1, 0), run);
             // Read the maximum off the entity rather than repeating 400.0 here,
             // so the bar stays correct if the boss's stats are ever retuned.
@@ -894,7 +895,7 @@ final class RunManager {
                     run.wave() == run.finalWave() ? "FINAL WAVE" : "WAVE " + run.wave(),
                     count + " incoming.",
                     NamedTextColor.GOLD);
-            player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_ZOMBIE_AMBIENT, 1f, 0.8f);
+            player.playSound(player.getLocation(), Sound.ENTITY_ZOMBIE_AMBIENT, 1f, 0.8f);
         }
 
         waveInProgress = true;
@@ -902,9 +903,27 @@ final class RunManager {
         plugin.hud().update(player, run);
     }
 
+    /**
+     * Refill the player's health.
+     *
+     * <p>Not `player.getMaxHealth()`: that method is deprecated, and the
+     * supported replacement is to read the MAX_HEALTH attribute. An attribute
+     * can genuinely be missing on an entity, so unlike the old method this
+     * needs a null check rather than being safe to call blindly.
+     */
+    private static void healFully(Player player) {
+        AttributeInstance max = player.getAttribute(Attribute.MAX_HEALTH);
+        if (max != null) {
+            player.setHealth(max.getValue());
+        }
+    }
+
     private Location randomSpot(Location centre, int radius) {
-        // Keep spawns away from the very middle so the player is not instantly
-        // surrounded on the first wave.
+        // A uniform square across the whole floor, radius blocks out from the
+        // centre. Note that "uniform" includes the middle: a mob can land on the
+        // block the player is standing on, and on the block the prize chest
+        // occupies. Rerolling points too close to the centre would be the fix if
+        // that ever becomes a problem in play.
         int x = random.nextInt(radius * 2) - radius;
         int z = random.nextInt(radius * 2) - radius;
         return centre.clone().add(x + 0.5, 1, z + 0.5);
@@ -984,7 +1003,7 @@ final class RunManager {
 
         // Top the player up between waves. Without this, a long run is decided
         // entirely by who found a golden apple first.
-        player.setHealth(player.getMaxHealth());
+        healFully(player);
 
         run.advanceWave();
 
@@ -1154,12 +1173,12 @@ final class MobFactory {
 
     private final Random random = new Random();
 
-    private final org.bukkit.NamespacedKey runKey;
-    private final org.bukkit.NamespacedKey waveKey;
+    private final NamespacedKey runKey;
+    private final NamespacedKey waveKey;
 
     public MobFactory(Plugin plugin) {
-        this.runKey = new org.bukkit.NamespacedKey(plugin, "dungeon_run");
-        this.waveKey = new org.bukkit.NamespacedKey(plugin, "dungeon_wave");
+        this.runKey = new NamespacedKey(plugin, "dungeon_run");
+        this.waveKey = new NamespacedKey(plugin, "dungeon_wave");
     }
 
     /**
@@ -1221,7 +1240,7 @@ final class MobFactory {
         set(mob, Attribute.KNOCKBACK_RESISTANCE, Math.min(0.8, wave * 0.08));
 
         // Raising MAX_HEALTH does NOT raise current health. A mob spawned with 20
-        // health and given a 90 health maximum still has 20 current, so a wave 10
+        // health and given a 46 health maximum still has 20 current, so a wave 10
         // zombie would die to the first sword swing and the difficulty curve would
         // be silently inverted. setHealth is what actually fills the new bar.
         mob.setHealth(maxHealth);
@@ -1277,13 +1296,13 @@ final class DungeonLord {
     private final Plugin plugin;
     private final Random random = new Random();
 
-    private final org.bukkit.NamespacedKey runKey;
-    private final org.bukkit.NamespacedKey waveKey;
+    private final NamespacedKey runKey;
+    private final NamespacedKey waveKey;
 
     public DungeonLord(Plugin plugin) {
         this.plugin = plugin;
-        this.runKey = new org.bukkit.NamespacedKey(plugin, "dungeon_run");
-        this.waveKey = new org.bukkit.NamespacedKey(plugin, "dungeon_wave");
+        this.runKey = new NamespacedKey(plugin, "dungeon_run");
+        this.waveKey = new NamespacedKey(plugin, "dungeon_wave");
     }
 
     /** Spawn the boss and start its minion timer. */
@@ -1399,7 +1418,7 @@ final class LootTable {
      *
      * @param runId the run to stamp the item with
      */
-    public ItemStack roll(int wave, java.util.UUID runId) {
+    public ItemStack roll(int wave, UUID runId) {
         List<Material> pool = poolFor(tierFor(wave));
         Material chosen = pool.get(random.nextInt(pool.size()));
         return tagger.tag(new ItemStack(chosen), runId);
@@ -1410,7 +1429,7 @@ final class LootTable {
      *
      * @param count how many to roll
      */
-    public List<ItemStack> rollMany(int wave, java.util.UUID runId, int count) {
+    public List<ItemStack> rollMany(int wave, UUID runId, int count) {
         List<ItemStack> out = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             out.add(roll(wave, runId));
@@ -1422,7 +1441,7 @@ final class LootTable {
      * The boss reward. Fixed rather than rolled, because a boss that gives
      * random junk feels like a bug.
      */
-    public ItemStack bossReward(java.util.UUID runId) {
+    public ItemStack bossReward(UUID runId) {
         return tagger.tag(new ItemStack(Material.NETHERITE_INGOT), runId);
     }
 
@@ -1566,14 +1585,14 @@ final class LootTagger {
     private final Plugin plugin;
 
     /** Key holding the run that produced the item. */
-    private final org.bukkit.NamespacedKey runKey;
+    private final NamespacedKey runKey;
     /** Presence of this key is what makes an item a dungeon item. */
-    private final org.bukkit.NamespacedKey dungeonKey;
+    private final NamespacedKey dungeonKey;
 
     public LootTagger(Plugin plugin) {
         this.plugin = plugin;
-        this.runKey = new org.bukkit.NamespacedKey(plugin, "dungeon_run");
-        this.dungeonKey = new org.bukkit.NamespacedKey(plugin, "dungeon_loot");
+        this.runKey = new NamespacedKey(plugin, "dungeon_run");
+        this.dungeonKey = new NamespacedKey(plugin, "dungeon_loot");
     }
 
     /** Stamp a single item as dungeon loot. Returns the same stack for chaining. */
@@ -1723,9 +1742,9 @@ final class RunHud {
     }
 
     /** Update an existing boss bar from a living entity's current health. */
-    public void updateBossBar(Player player, org.bukkit.entity.LivingEntity boss) {
+    public void updateBossBar(Player player, LivingEntity boss) {
         if (bossBar != null) {
-            var health = boss.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+            var health = boss.getAttribute(Attribute.MAX_HEALTH);
             double max = health != null ? health.getValue() : 1.0;
             bossBar.setProgress(Math.max(0.0, Math.min(1.0, boss.getHealth() / max)));
         }
@@ -1752,13 +1771,13 @@ final class RunListener implements Listener {
     private final RunManager runs;
     private final LootTagger tagger;
     private final DungeonPlugin plugin;
-    private final org.bukkit.NamespacedKey runKey;
+    private final NamespacedKey runKey;
 
     public RunListener(RunManager runs, LootTagger tagger, DungeonPlugin plugin) {
         this.runs = runs;
         this.tagger = tagger;
         this.plugin = plugin;
-        this.runKey = new org.bukkit.NamespacedKey(plugin, "dungeon_run");
+        this.runKey = new NamespacedKey(plugin, "dungeon_run");
     }
 
     /**
@@ -1819,9 +1838,11 @@ final class RunListener implements Listener {
         event.getDrops().clear();
         event.getDrops().addAll(drops);
 
-        // setDeathMessage only takes a legacy String, not a Component, so this
-        // one line uses the § colour escape rather than the Adventure API.
-        event.setDeathMessage("§7" + player.getName() + " fell in the dungeon.");
+        // Death messages take an Adventure Component now. The old String
+        // overload is deprecated, along with the § colour escapes that went
+        // with it — NamedTextColor.GRAY is the same grey it used to produce.
+        event.deathMessage(Component.text(
+                player.getName() + " fell in the dungeon.", NamedTextColor.GRAY));
 
         // End the run after the death is fully processed, so the mob cleanup and
         // the summary run against a run that is still marked active.
