@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Dungeon | Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
+            background: #0a0a0a;
+            color: #e5e5e5;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        header {
+            text-align: center;
+            padding: 60px 0;
+            border-bottom: 1px solid #1a1a1a;
+            margin-bottom: 60px;
+        }
+        h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle {
+            color: #a3a3a3;
+            font-size: 18px;
+        }
+        .section {
+            margin-bottom: 60px;
+        }
+        h2 {
+            font-size: 32px;
+            margin-bottom: 20px;
+            color: #fff;
+        }
+        .demo-video {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #111;
+            border: 1px solid #1a1a1a;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .feature {
+            background: #111;
+            padding: 24px;
+            border-radius: 8px;
+            border: 1px solid #1a1a1a;
+        }
+        .feature h3 {
+            color: #fff;
+            margin-bottom: 8px;
+            font-size: 18px;
+        }
+        .feature p {
+            color: #a3a3a3;
+            font-size: 14px;
+        }
+        footer {
+            text-align: center;
+            padding: 40px 0;
+            border-top: 1px solid #1a1a1a;
+            color: #666;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>The Dungeon</h1>
+            <p class="subtitle">A wave-based dungeon crawler for Minecraft</p>
+            <a href="https://github.com/liqwidcell-dot/the-dungeon" class="btn">View on GitHub</a>
+        </header>
+
+        <section class="section">
+            <h2>Demo</h2>
+            <div class="demo-video">
+                [Demo Video Coming Soon]
+            </div>
+            <p style="color: #a3a3a3; text-align: center;">
+                Watch the dungeon in action - waves, boss fights, and co-op gameplay
+            </p>
+        </section>
+
+        <section class="section">
+            <h2>Features</h2>
+            <div class="features">
+                <div class="feature">
+                    <h3>🌊 Wave System</h3>
+                    <p>10 escalating waves of mobs with increasing difficulty</p>
+                </div>
+                <div class="feature">
+                    <h3>👥 Co-op Parties</h3>
+                    <p>Team up with up to 4 players for epic battles</p>
+                </div>
+                <div class="feature">
+                    <h3>👹 Boss Fight</h3>
+                    <p>Face off against the custom Dungeon Lord</p>
+                </div>
+                <div class="feature">
+                    <h3>💰 Smart Loot</h3>
+                    <p>Dungeon items are tagged and only lost on death</p>
+                </div>
+                <div class="feature">
+                    <h3>💀 Individual Elimination</h3>
+                    <p>Your gear is safe - only dungeon loot is at risk</p>
+                </div>
+                <div class="feature">
+                    <h3>⚖️ Balanced Scaling</h3>
+                    <p>Difficulty scales with party size and wave count</p>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>Made for Hack Club • <a href="https://github.com/liqwidcell-dot/the-dungeon" style="color: #ff6b35;">GitHub</a></p>
+        </footer>
+    </div>
+</body>
+</html>
